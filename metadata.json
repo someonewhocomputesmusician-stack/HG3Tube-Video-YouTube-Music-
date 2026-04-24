@@ -1,0 +1,6 @@
+{
+  "name": "HG3 Tube",
+  "description": "A high-performance music and video distribution platform with powerful APIs for artists and labels.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["video_hosting", "music_distribution", "content_monetization"]
+}

@@ -1,0 +1,71 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with channel information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "channelDescription": { "type": "string" },
+        "isArtist": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Content": {
+      "title": "Content",
+      "description": "Video or Music Track",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "url": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "type": { "enum": ["video", "music"] },
+        "visibility": { "enum": ["public", "private"] },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "metadata": { "type": "object" },
+        "monetization": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "url", "type", "visibility", "authorId"]
+    },
+    "ApiKey": {
+      "title": "API Key",
+      "description": "Developer API credentials",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "userId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "clientSecret": { "type": "string" },
+        "redirectUris": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Store user profiles and channel settings"
+    },
+    "/api_keys/{keyId}": {
+      "schema": "ApiKey",
+      "description": "Validator for external app requests"
+    },
+    "/content/{contentId}": {
+      "schema": "Content",
+      "description": "Store video and music track metadata"
+    },
+    "/content/{contentId}/analytics/{day}": {
+      "schema": "object",
+      "description": "Store usage analytics and monetization data"
+    }
+  }
+}

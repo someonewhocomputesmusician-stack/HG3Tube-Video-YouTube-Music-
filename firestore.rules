@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny: All-or-nothing protection
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // User Records
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if false; // Users shouldn't be listed globally
+      allow create: if isOwner(userId)
+        && incoming().uid == userId
+        && incoming().email == request.auth.token.email;
+      allow update: if isOwner(userId)
+        && incoming().uid == userId
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'channelDescription', 'isArtist']);
+    }
+
+    // Content Records
+    match /content/{contentId} {
+      function isValidContent(data) {
+        return data.id is string
+          && data.title is string && data.title.size() <= 100
+          && data.url is string && data.url.size() <= 1000
+          && data.type in ['video', 'music']
+          && data.visibility in ['public', 'private']
+          && data.authorId == request.auth.uid;
+      }
+
+      allow read: if existing().visibility == 'public' || isOwner(existing().authorId);
+      allow create: if isSignedIn() && isValidContent(incoming()) && isValidId(contentId);
+      allow update: if isOwner(existing().authorId)
+        && isValidContent(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'thumbnailUrl', 'visibility', 'metadata', 'monetization', 'updatedAt'])
+        && incoming().updatedAt == request.time;
+      allow delete: if isOwner(existing().authorId);
+    }
+
+    // API Keys
+    match /api_keys/{keyId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() 
+        && incoming().userId == request.auth.uid
+        && incoming().key == keyId
+        && incoming().createdAt == request.time;
+      allow update: if isSignedIn() && existing().userId == request.auth.uid
+        && incoming().diff(existing()).affectedKeys().hasOnly(['redirectUris']);
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    // Analytics (Sub-collection)
+    match /content/{contentId}/analytics/{day} {
+      allow read: if isOwner(get(/databases/$(database)/documents/content/$(contentId)).data.authorId);
+      allow write: if false; // System only or secure backend
+    }
+  }
+}
