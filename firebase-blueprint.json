@@ -45,8 +45,36 @@
         "userId": { "type": "string" },
         "clientId": { "type": "string" },
         "clientSecret": { "type": "string" },
+        "appType": { "enum": ["web", "backend", "native"] },
         "redirectUris": { "type": "array" },
         "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Channel": {
+      "title": "Channel",
+      "description": "Content creator channel",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "enum": ["music", "gaming", "vlog", "tech", "general"] },
+        "description": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "name", "type"]
+    },
+    "AuthToken": {
+      "title": "Auth Token",
+      "description": "Developer access and refresh tokens",
+      "type": "object",
+      "properties": {
+        "accessToken": { "type": "string" },
+        "refreshToken": { "type": "string" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" },
+        "clientId": { "type": "string" }
       }
     }
   },
@@ -55,9 +83,17 @@
       "schema": "User",
       "description": "Store user profiles and channel settings"
     },
+    "/channels/{channelId}": {
+      "schema": "Channel",
+      "description": "Store individual creator channels"
+    },
     "/api_keys/{keyId}": {
       "schema": "ApiKey",
       "description": "Validator for external app requests"
+    },
+    "/auth_tokens/{tokenId}": {
+      "schema": "AuthToken",
+      "description": "Temporary and long-lived developer tokens"
     },
     "/content/{contentId}": {
       "schema": "Content",

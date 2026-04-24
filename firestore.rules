@@ -54,7 +54,22 @@ service cloud.firestore {
         && incoming().key == keyId
         && incoming().createdAt == request.time;
       allow update: if isSignedIn() && existing().userId == request.auth.uid
-        && incoming().diff(existing()).affectedKeys().hasOnly(['redirectUris']);
+        && incoming().diff(existing()).affectedKeys().hasOnly(['redirectUris', 'appType']);
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    // Channels
+    match /channels/{channelId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().ownerId == request.auth.uid;
+      allow update: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow delete: if isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // Auth Tokens
+    match /auth_tokens/{tokenId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
       allow delete: if isSignedIn() && existing().userId == request.auth.uid;
     }
 

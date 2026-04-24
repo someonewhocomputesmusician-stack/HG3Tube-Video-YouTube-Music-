@@ -43,7 +43,13 @@ import {
   ContentItem,
   generateApiKey,
   getUserApiKeys,
-  deleteApiKey
+  deleteApiKey,
+  updateApiKeyUris,
+  createChannel,
+  getChannelByOwner,
+  generateAuthToken,
+  generateUploadUri,
+  Channel
 } from './lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { generateContentMetadata } from './lib/gemini';
@@ -317,16 +323,40 @@ const VideoCard = ({ item, onClick }: { item: ContentItem, onClick: () => void }
   );
 };
 
-const UploadModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+const UploadModal = ({ isOpen, onClose, channel, onAcknowledge }: { isOpen: boolean, onClose: () => void, channel: Channel | null, onAcknowledge: () => void }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    type: 'video' as 'video' | 'music',
-    visibility: 'public' as 'public' | 'private'
+    type: 'video' as 'video' | 'music' | 'show' | 'film',
+    visibility: 'public' as 'public' | 'private',
+    monetizationEnabled: true
   });
   const [aiMetadata, setAiMetadata] = useState<any>(null);
+
+  if (!channel && isOpen) {
+    return (
+      <AnimatePresence>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={onClose} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative w-full max-w-md bg-[#0a0a0a] border border-orange-500/30 p-10 text-center shadow-2xl">
+            <h2 className="text-2xl font-black italic uppercase mb-4 text-[#E4E3E0]">Channel Required</h2>
+            <p className="text-white/40 mb-8 font-serif italic text-sm">Establish your distribution node before performing media ingestion. Redirecting to initialization required.</p>
+            <button 
+              onClick={() => {
+                onClose();
+                onAcknowledge();
+              }} 
+              className="bg-orange-500 text-black px-8 py-3 text-[10px] font-black uppercase tracking-widest hover:bg-orange-400 transition-colors"
+            >
+              Acknowledge
+            </button>
+          </motion.div>
+        </div>
+      </AnimatePresence>
+    );
+  }
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -346,7 +376,12 @@ const UploadModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
       visibility: formData.visibility,
       authorId: user.uid,
       authorName: user.displayName || 'Anonymous',
-      metadata: aiMetadata
+      metadata: aiMetadata,
+      monetization: {
+        enabled: formData.monetizationEnabled,
+        type: 'revenue_share',
+        currency: 'USD'
+      }
     };
 
     try {
@@ -403,22 +438,38 @@ const UploadModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
             </div>
             
             <form onSubmit={handleUpload} className="p-8 space-y-8">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <button 
                   type="button"
                   onClick={() => setFormData(prev => ({...prev, type: 'video'}))}
-                  className={`p-6 border transition-all flex flex-col items-center justify-center gap-4 ${formData.type === 'video' ? 'bg-white text-black border-white' : 'bg-transparent border-[#E4E3E0]/10 text-white/40 hover:text-white'}`}
+                  className={`p-4 border transition-all flex flex-col items-center justify-center gap-3 ${formData.type === 'video' ? 'bg-white text-black border-white' : 'bg-transparent border-[#E4E3E0]/10 text-white/40 hover:text-white'}`}
                 >
-                  <Video className="w-8 h-8" />
-                  <span className="text-[10px] font-black tracking-[0.2em] uppercase">Video Path</span>
+                  <Video className="w-6 h-6" />
+                  <span className="text-[10px] font-black tracking-[0.2em] uppercase">Video</span>
                 </button>
                 <button 
                   type="button"
                   onClick={() => setFormData(prev => ({...prev, type: 'music'}))}
-                  className={`p-6 border transition-all flex flex-col items-center justify-center gap-4 ${formData.type === 'music' ? 'bg-white text-black border-white' : 'bg-transparent border-[#E4E3E0]/10 text-white/40 hover:text-white'}`}
+                  className={`p-4 border transition-all flex flex-col items-center justify-center gap-3 ${formData.type === 'music' ? 'bg-white text-black border-white' : 'bg-transparent border-[#E4E3E0]/10 text-white/40 hover:text-white'}`}
                 >
-                  <Music className="w-8 h-8" />
-                  <span className="text-[10px] font-black tracking-[0.2em] uppercase">Music Node</span>
+                  <Music className="w-6 h-6" />
+                  <span className="text-[10px] font-black tracking-[0.2em] uppercase">Music</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setFormData(prev => ({...prev, type: 'show'}))}
+                  className={`p-4 border transition-all flex flex-col items-center justify-center gap-3 ${formData.type === 'show' ? 'bg-white text-black border-white' : 'bg-transparent border-[#E4E3E0]/10 text-white/40 hover:text-white'}`}
+                >
+                  <Play className="w-6 h-6" />
+                  <span className="text-[10px] font-black tracking-[0.2em] uppercase">TV_Show</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setFormData(prev => ({...prev, type: 'film'}))}
+                  className={`p-4 border transition-all flex flex-col items-center justify-center gap-3 ${formData.type === 'film' ? 'bg-white text-black border-white' : 'bg-transparent border-[#E4E3E0]/10 text-white/40 hover:text-white'}`}
+                >
+                  <Maximize2 className="w-6 h-6" />
+                  <span className="text-[10px] font-black tracking-[0.2em] uppercase">Movie</span>
                 </button>
               </div>
 
@@ -433,6 +484,38 @@ const UploadModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
                     className="w-full bg-transparent border-b border-[#E4E3E0]/20 py-3 text-lg font-serif italic focus:outline-none focus:border-white text-[#E4E3E0] placeholder:text-white/10"
                     placeholder="UNTITLED_MEDIA_PROJECT"
                   />
+                </div>
+
+                <div className="pt-4 border-t border-white/5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#E4E3E0]">Monetization Engine</h4>
+                      <p className="text-[9px] text-white/30 uppercase mt-1">Enable revenue sharing for this node</p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setFormData(p => ({...p, monetizationEnabled: !p.monetizationEnabled}))}
+                      className={`w-12 h-6 rounded-full transition-all relative ${formData.monetizationEnabled ? 'bg-orange-500' : 'bg-white/10'}`}
+                    >
+                      <motion.div 
+                        animate={{ x: formData.monetizationEnabled ? 24 : 4 }}
+                        className="absolute top-1 w-4 h-4 rounded-full bg-white shadow-xl"
+                      />
+                    </button>
+                  </div>
+
+                  {formData.monetizationEnabled && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-orange-500/5 border border-orange-500/20"
+                    >
+                      <div className="flex items-center gap-3 text-orange-500">
+                        <DollarSign className="w-4 h-4" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Revenue_Share: Active (70/30)</span>
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -486,12 +569,223 @@ const UploadModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
   );
 };
 
+const ChannelSetup = ({ onComplete }: { onComplete: () => void }) => {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'general' as any,
+    description: '',
+    avatarUrl: ''
+  });
+
+  useEffect(() => {
+    if (user) {
+      setFormData(p => ({ ...p, name: user.displayName || '', avatarUrl: user.photoURL || '' }));
+    }
+  }, [user]);
+
+  const connectGoogle = async () => {
+    setLoading(true);
+    // Mimic YouTube-style account linking delay
+    await new Promise(r => setTimeout(r, 1200));
+    setIsGoogleConnected(true);
+    setLoading(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !isGoogleConnected) return;
+    setLoading(true);
+    await createChannel({
+      id: Math.random().toString(36).substring(2),
+      ownerId: user.uid,
+      ...formData
+    });
+    setLoading(false);
+    onComplete();
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto py-20 px-8 bg-[#0a0a0a] border border-[#E4E3E0]/10">
+      <header className="mb-12">
+        <span className="text-[10px] uppercase tracking-[0.4em] text-orange-500 font-bold mb-2 block">Identity Initialization</span>
+        <h2 className="text-4xl font-black italic tracking-tighter uppercase transform -skew-x-3">Establish Channel Node</h2>
+        <p className="mt-4 text-white/40 font-serif italic text-lg">You must establish a distribution channel and verify your identity before syncing media.</p>
+      </header>
+
+      <div className="mb-10 p-6 bg-white/5 border border-white/10 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="relative group cursor-pointer h-16 w-16">
+            <img src={formData.avatarUrl || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Channel'} alt="Avatar" className="w-full h-full object-cover group-hover:opacity-50 transition-opacity" />
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <Upload className="w-4 h-4" />
+            </div>
+          </div>
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-widest">Channel Avatar</h4>
+            <p className="text-[10px] text-white/30 uppercase mt-1">400x400 PNG/JPG RECOMMENDED</p>
+          </div>
+        </div>
+        {!isGoogleConnected ? (
+          <button 
+            type="button"
+            onClick={connectGoogle}
+            className="flex items-center gap-2 bg-white text-black px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white/90"
+          >
+            <Play fill="black" className="w-3 h-3" /> Connect Google Account
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 px-3 py-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            <span className="text-[10px] font-black text-green-500 uppercase tracking-widest">Verified Identity</span>
+          </div>
+        )}
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-8">
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#E4E3E0]/30">Channel Name</label>
+            <input 
+              required
+              type="text" 
+              className="w-full bg-transparent border-b border-[#E4E3E0]/20 py-3 text-lg font-serif italic focus:outline-none focus:border-white text-[#E4E3E0]"
+              value={formData.name}
+              onChange={e => setFormData(p => ({...p, name: e.target.value}))}
+              placeholder="e.g. Sonic Archives"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#E4E3E0]/30">Avatar URL</label>
+            <input 
+              type="text" 
+              className="w-full bg-transparent border-b border-[#E4E3E0]/20 py-3 text-xs focus:outline-none focus:border-white text-white/60"
+              value={formData.avatarUrl}
+              onChange={e => setFormData(p => ({...p, avatarUrl: e.target.value}))}
+              placeholder="https://example.com/avatar.png"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#E4E3E0]/30">Distribution Domain</label>
+            <select 
+              className="w-full bg-transparent border-b border-[#E4E3E0]/20 py-3 text-sm focus:outline-none focus:border-white text-white/60"
+              value={formData.type}
+              onChange={e => setFormData(p => ({...p, type: e.target.value as any}))}
+            >
+              <option value="general" className="bg-black">General Archive</option>
+              <option value="music" className="bg-black">Music Distribution</option>
+              <option value="gaming" className="bg-black">Gaming Network</option>
+              <option value="show" className="bg-black">Original Shows</option>
+              <option value="film" className="bg-black">Film Repository</option>
+              <option value="vlog" className="bg-black">Vlog Identity</option>
+              <option value="tech" className="bg-black">Technical Logs</option>
+              <option value="education" className="bg-black">Educational Node</option>
+              <option value="news" className="bg-black">Global News</option>
+              <option value="sports" className="bg-black">Atheletic Archive</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#E4E3E0]/30">Node Description</label>
+            <textarea 
+              className="w-full bg-[#111] border border-[#E4E3E0]/10 p-4 text-xs font-medium focus:outline-none focus:border-white text-white/70 resize-none h-32"
+              value={formData.description}
+              onChange={e => setFormData(p => ({...p, description: e.target.value}))}
+              placeholder="Describe your content strategy..."
+            />
+          </div>
+        </div>
+
+        <button 
+          type="submit"
+          disabled={loading || !isGoogleConnected}
+          className="w-full bg-[#E4E3E0] text-black py-5 text-[11px] uppercase tracking-[0.5em] font-black hover:bg-white transition-all disabled:opacity-20"
+        >
+          {!isGoogleConnected ? 'AWAITING_GOOGLE_SYNC' : (loading ? 'SYNCING_IDENTITY...' : 'INITIALIZE_CHANNEL')}
+        </button>
+      </form>
+    </div>
+  );
+};
+
+const UriGenerator = ({ channelId }: { channelId: string }) => {
+  const [loading, setLoading] = useState(false);
+  const [generatedUri, setGeneratedUri] = useState('');
+  const [type, setType] = useState('music');
+
+  const generate = async () => {
+    setLoading(true);
+    const uri = await generateUploadUri(channelId, type);
+    setGeneratedUri(uri);
+    setLoading(false);
+  };
+
+  return (
+    <div className="bg-[#111] border border-[#E4E3E0]/10 p-10 space-y-8">
+      <header>
+        <span className="text-[10px] uppercase tracking-[0.4em] text-orange-500 font-bold mb-2 block">Upload Gateway</span>
+        <h3 className="text-2xl font-black italic tracking-tighter uppercase transform -skew-x-3">URI Generator</h3>
+      </header>
+
+      <div className="flex gap-4">
+        <select 
+          className="bg-black border border-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 focus:outline-none"
+          value={type}
+          onChange={e => setType(e.target.value)}
+        >
+          <option value="music">MUSIC_NODE</option>
+          <option value="video">VIDEO_NODE</option>
+        </select>
+        <button 
+          onClick={generate}
+          disabled={loading}
+          className="flex-1 bg-[#E4E3E0] text-black py-3 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-white transition-all"
+        >
+          {loading ? 'GENERATING...' : 'GENERATE_SECURE_URI'}
+        </button>
+      </div>
+
+      {generatedUri && (
+        <div className="space-y-2">
+          <p className="text-[9px] uppercase tracking-widest text-white/20">Secured Entry Point URI</p>
+          <div className="flex items-center gap-2">
+            <code className="bg-black px-4 py-3 border border-white/5 text-[10px] text-orange-500 flex-1 truncate font-mono">
+              {generatedUri}
+            </code>
+            <button 
+              onClick={() => navigator.clipboard.writeText(generatedUri)}
+              className="p-3 bg-white/5 hover:bg-white text-white/60 hover:text-black transition-all"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ApiManagement = () => {
   const { user } = useAuth();
   const [keys, setKeys] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [uriInput, setUriInput] = useState('');
+  const [isTokenLoading, setIsTokenLoading] = useState(false);
+  const [tokens, setTokens] = useState<any>(null);
+
+  const handleRefreshToken = async (clientId: string) => {
+    if (!user) return;
+    setIsTokenLoading(true);
+    // AI simulation: Refreshing tokens using Gemini-like logic (simulated)
+    const newTokens = await generateAuthToken(user.uid, clientId);
+    setTokens(newTokens);
+    setIsTokenLoading(false);
+  };
 
   useEffect(() => {
     if (user) {
@@ -576,6 +870,30 @@ const ApiManagement = () => {
                         <code className="bg-black px-3 py-1.5 border border-white/5 text-[11px] text-orange-500 flex-1">{k.clientSecret}</code>
                         <button onClick={() => copyToClipboard(k.clientSecret)} className="p-2 hover:bg-white/10 transition-colors"><Copy className="w-3 h-3" /></button>
                       </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[9px] uppercase tracking-widest text-white/30">Active Auth Tokens (AI Regenerated)</p>
+                        <button 
+                          onClick={() => handleRefreshToken(k.clientId)}
+                          disabled={isTokenLoading}
+                          className="text-[9px] font-black uppercase text-orange-500 hover:text-orange-400"
+                        >
+                          {isTokenLoading ? 'SYNCING...' : 'RE-SYNC_AI_TOKENS'}
+                        </button>
+                      </div>
+                      {tokens && tokens.clientId === k.clientId && (
+                        <div className="bg-black/40 p-4 border border-white/5 space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[8px] uppercase tracking-widest text-white/20">Access Token</span>
+                            <code className="text-[10px] text-orange-400 font-mono">{tokens.accessToken}</code>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[8px] uppercase tracking-widest text-white/20">Refresh Token</span>
+                            <code className="text-[10px] text-orange-400 font-mono">{tokens.refreshToken}</code>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="space-y-1">
@@ -737,26 +1055,60 @@ const StreamingDistribution = () => {
 };
 
 // --- Main Pages ---
-
 const Dashboard = () => {
   const { user } = useAuth();
   const [content, setContent] = useState<ContentItem[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'music' | 'videos' | 'api' | 'streaming'>('all');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedContent, setSelectedContent] = useState<ContentItem | null>(null);
+  const [channel, setChannel] = useState<Channel | null>(null);
+  const [isCheckingChannel, setIsCheckingChannel] = useState(true);
 
   useEffect(() => {
     const fetch = async () => {
       const results = await getPublicContent();
       if (results) setContent(results);
+      
+      if (user) {
+        const c = await getChannelByOwner(user.uid);
+        setChannel(c);
+      }
+      setIsCheckingChannel(false);
     };
     fetch();
-  }, []);
+  }, [user]);
+
+  const handleUploadClick = () => {
+    if (!channel) {
+      // In a real app we might redirect or show a prompt. 
+      // Here we will force the tab to something else if they don't have a channel?
+      // No, let's just use the logic in the return to show channel setup.
+    }
+    setIsUploadOpen(true);
+  };
 
   const filteredContent = content.filter(item => {
     if (activeTab === 'all' || activeTab === 'api' || activeTab === 'streaming') return true;
     return activeTab === 'music' ? item.type === 'music' : item.type === 'video';
   });
+
+  if (user && !channel && !isCheckingChannel && activeTab !== 'all') {
+    return (
+      <div className="min-h-screen bg-[#050505] text-[#E4E3E0]">
+        <Navbar />
+        <main className="pt-32 px-8 max-w-4xl mx-auto">
+          <div className="mb-12 text-center">
+            <h1 className="text-4xl font-black italic uppercase tracking-tighter mb-2">Sync Required</h1>
+            <p className="text-white/40 font-serif italic text-lg">Your account is not yet connected to a distribution channel. Create one to start uploading.</p>
+          </div>
+          <ChannelSetup onComplete={() => getChannelByOwner(user.uid).then((c) => {
+            setChannel(c);
+            // Optional: Automatically open upload modal or guide user
+          })} />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#050505] text-[#E4E3E0] font-sans selection:bg-orange-500 selection:text-white overflow-x-hidden">
@@ -833,7 +1185,10 @@ const Dashboard = () => {
         {selectedContent ? (
           <VideoPlayer item={selectedContent} onBack={() => setSelectedContent(null)} />
         ) : activeTab === 'api' ? (
-          <ApiManagement />
+          <div className="space-y-20">
+            <ApiManagement />
+            {channel && <UriGenerator channelId={channel.id} />}
+          </div>
         ) : activeTab === 'streaming' ? (
           <StreamingDistribution />
         ) : (
@@ -868,7 +1223,12 @@ const Dashboard = () => {
         </footer>
       </main>
 
-      <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
+      <UploadModal 
+        isOpen={isUploadOpen} 
+        onClose={() => setIsUploadOpen(false)} 
+        channel={channel} 
+        onAcknowledge={() => setActiveTab('music')} 
+      />
     </div>
   );
 };

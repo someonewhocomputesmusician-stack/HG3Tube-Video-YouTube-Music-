@@ -74,7 +74,7 @@ export interface ContentItem {
   description: string;
   url: string;
   thumbnailUrl?: string;
-  type: 'video' | 'music';
+  type: 'video' | 'music' | 'show' | 'film';
   visibility: 'public' | 'private';
   authorId: string;
   authorName: string;
@@ -98,7 +98,7 @@ export async function uploadContent(item: ContentItem) {
   }
 }
 
-export async function getPublicContent(type?: 'video' | 'music') {
+export async function getPublicContent(type?: 'video' | 'music' | 'show' | 'film') {
   const contentRef = collection(db, 'content');
   let q = query(contentRef, where('visibility', '==', 'public'));
   if (type) {
@@ -151,6 +151,66 @@ export async function getUserApiKeys(userId: string) {
   } catch (e) {
     handleFirestoreError(e, OperationType.LIST, 'api_keys');
   }
+}
+
+// Channel Services
+export interface Channel {
+  id: string;
+  ownerId: string;
+  name: string;
+  type: 'music' | 'gaming' | 'vlog' | 'tech' | 'general' | 'show' | 'film' | 'education' | 'news' | 'sports';
+  description?: string;
+  avatarUrl?: string;
+  createdAt?: any;
+}
+
+export async function createChannel(channel: Channel) {
+  try {
+    await setDoc(doc(db, 'channels', channel.id), {
+      ...channel,
+      createdAt: serverTimestamp()
+    });
+  } catch (e) {
+    handleFirestoreError(e, OperationType.CREATE, `channels/${channel.id}`);
+  }
+}
+
+export async function getChannelByOwner(ownerId: string) {
+  const q = query(collection(db, 'channels'), where('ownerId', '==', ownerId));
+  try {
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    return { id: snap.docs[0].id, ...snap.docs[0].data() } as Channel;
+  } catch (e) {
+    handleFirestoreError(e, OperationType.GET, 'channels');
+  }
+}
+
+// Token & URI Services
+export async function generateAuthToken(userId: string, clientId: string) {
+  const accessToken = `access_${Math.random().toString(36).substring(2)}`;
+  const refreshToken = `refresh_${Math.random().toString(36).substring(2)}`;
+  const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
+  
+  const tokenId = `${userId}_${clientId}`;
+  try {
+    await setDoc(doc(db, 'auth_tokens', tokenId), {
+      accessToken,
+      refreshToken,
+      expiresAt,
+      userId,
+      clientId
+    });
+    return { accessToken, refreshToken, expiresAt };
+  } catch (e) {
+    handleFirestoreError(e, OperationType.CREATE, `auth_tokens/${tokenId}`);
+  }
+}
+
+export async function generateUploadUri(channelId: string, type: string) {
+  // Simulate a signed URI for uploading
+  const signature = btoa(`${channelId}-${type}-${Date.now()}`).substring(0, 16);
+  return `https://hg3tube.com/upload/gateway?channel=${channelId}&type=${type}&sig=${signature}`;
 }
 
 export async function deleteApiKey(key: string) {

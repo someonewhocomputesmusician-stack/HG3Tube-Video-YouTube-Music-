@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
-export async function generateContentMetadata(title: string, description: string, type: 'video' | 'music') {
+export async function generateContentMetadata(title: string, description: string, type: 'video' | 'music' | 'show' | 'film') {
   const prompt = `You are a music and video metadata expert for HG3 Tube. 
   Given the following ${type} information:
   Title: ${title}
